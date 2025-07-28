@@ -21,7 +21,7 @@ pipeline {
         stage('Test') {
             steps {
                 sh '''
-                    source venv/bin/activate
+                    . venv/bin/activate
                     pytest
                 '''
             }
@@ -52,11 +52,9 @@ pipeline {
         stage('Deploy to Local K8s') {
             steps {
                 script {
-                    // Replace image in deployment.yaml if needed
+                    // Update image tag in your k8s deployment manifest before apply
                     sh "sed -i 's|image: .*|image: ${IMAGE_TAG}|' k8s/deployment.yaml"
                 }
-
-                // Apply all manifests from k8s folder
                 sh 'kubectl apply -f k8s/'
                 sh 'kubectl get all'
             }
@@ -65,7 +63,7 @@ pipeline {
         stage('Run Acceptance Test') {
             steps {
                 script {
-                    // Wait for service to be available (e.g., NodePort or ClusterIP)
+                    // Wait for the pod to be ready and fetch logs
                     sh "sleep 10"
                     def podName = sh(script: "kubectl get pods -l app=flask-app -o jsonpath='{.items[0].metadata.name}'", returnStdout: true).trim()
                     sh "kubectl logs ${podName}"
