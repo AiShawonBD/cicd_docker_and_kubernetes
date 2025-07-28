@@ -53,7 +53,8 @@ pipeline {
                        sed -i 's|image: aishawon/cicd_docker_demo:[a-f0-9]*|image: ${IMAGE_TAG}|g' k8s/deployment.yaml
                     """
                     // Apply deployment to local Kubernetes cluster
-                    sh "kubectl apply -f k8s/deployment.yaml"
+                    //sh "kubectl apply -f k8s/deployment.yaml"
+                    sh "kubectl apply -f k8s/"
                 }
             }
         }
