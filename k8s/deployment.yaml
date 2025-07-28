@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: flask-app
+  template:
+    metadata:
+      labels:
+        app: flask-app
+    spec:
+      containers:
+      - name: flask-app
+        image: aishawon/cicd_docker_demo:e0619cf4e1d7795eb537da97c8f14e5867c68a8d
+        # resources:
+        #   limits:
+        #     memory: "128Mi"
+        #     cpu: "100m"
+        ports:
+        - containerPort: 5000
