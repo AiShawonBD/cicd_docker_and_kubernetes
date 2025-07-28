@@ -3,58 +3,53 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'aishawon/cicd_docker_demo'
-        IMAGE_TAG = "${IMAGE_NAME}:${env.GIT_COMMIT}"
-        // Remove AWS and KUBECONFIG credentials for local k8s
+        IMAGE_TAG = "${IMAGE_NAME}:${GIT_COMMIT}"
     }
 
     stages {
         stage('Setup') {
             steps {
-                // No kubeconfig file needed, local kubectl uses default config
-                sh "pip install -r requirements.txt"
+                sh 'pip install -r requirements.txt'
             }
         }
 
         stage('Test') {
             steps {
-                sh "pytest"
+                sh 'pytest'
             }
         }
 
-        stage('Login to docker hub') {
+        stage('Login to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-                    sh 'echo ${PASSWORD} | docker login -u ${USERNAME} --password-stdin'
+                    sh 'echo $PASSWORD | docker login -u $USERNAME --password-stdin'
                 }
-                echo 'Login successfully'
+                echo 'Docker login successful'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${IMAGE_TAG} ."
-                echo "Docker image built successfully"
-                sh "docker image ls"
+                sh 'docker build -t $IMAGE_TAG .'
+                sh 'docker image ls'
+                echo 'Docker image built successfully'
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                sh "docker push ${IMAGE_TAG}"
-                echo "Docker image pushed successfully"
+                sh 'docker push $IMAGE_TAG'
+                echo 'Docker image pushed successfully'
             }
         }
 
-        stage('Deploy Pod') {
+        stage('Deploy to Local Kubernetes') {
             steps {
                 script {
-                    // Dynamically replace image tag in your deployment YAML before applying
                     sh """
-                       sed -i 's|image: aishawon/cicd_docker_demo:[a-f0-9]*|image: ${IMAGE_TAG}|g' k8s/deployment.yaml
+                        sed -i 's|image: aishawon/cicd_docker_demo:[a-zA-Z0-9_.-]*|image: $IMAGE_TAG|g' k8s/deployment.yaml
                     """
-                    // Apply deployment to local Kubernetes cluster
-                    //sh "kubectl apply -f k8s/deployment.yaml"
-                    sh "kubectl apply -f k8s/"
+                    sh 'kubectl apply -f k8s/' //Deploy all k8s file.
                 }
             }
         }
@@ -62,11 +57,12 @@ pipeline {
         stage('Acceptance Test') {
             steps {
                 script {
-                    // For local k8s, usually no LoadBalancer IP, use ClusterIP or NodePort
-                    def service = sh(script: "kubectl get svc flask-app-service -o jsonpath='{.spec.clusterIP}:{.spec.ports[0].port}'", returnStdout: true).trim()
-                    echo "Service endpoint: ${service}"
-
-                    sh "k6 run -e SERVICE=${service} acceptance-test.js"
+                    sleep(time: 10, unit: 'SECONDS')
+                    def nodePort = sh(script: "kubectl get svc flask-app-service -o jsonpath='{.spec.ports[0].nodePort}'", returnStdout: true).trim()
+                    def nodeIP = sh(script: "minikube ip", returnStdout: true).trim()
+                    def serviceURL = "http://${nodeIP}:${nodePort}"
+                    echo "Running acceptance test on ${serviceURL}"
+                    sh "k6 run -e SERVICE=${serviceURL} acceptance-test.js"
                 }
             }
         }
