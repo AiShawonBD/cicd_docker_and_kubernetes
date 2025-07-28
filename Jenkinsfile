@@ -52,7 +52,6 @@ pipeline {
         stage('Deploy to Local K8s') {
             steps {
                 script {
-                    // Update image tag in your k8s deployment manifest before apply
                     sh "sed -i 's|image: .*|image: ${IMAGE_TAG}|' k8s/deployment.yaml"
                 }
                 sh 'kubectl apply -f k8s/'
@@ -63,7 +62,6 @@ pipeline {
         stage('Run Acceptance Test') {
             steps {
                 script {
-                    // Wait for the pod to be ready and fetch logs
                     sh "sleep 10"
                     def podName = sh(script: "kubectl get pods -l app=flask-app -o jsonpath='{.items[0].metadata.name}'", returnStdout: true).trim()
                     sh "kubectl logs ${podName}"
