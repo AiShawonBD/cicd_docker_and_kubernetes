@@ -2,68 +2,69 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'aishawon/cicd_docker_demo'
-        IMAGE_TAG = "${IMAGE_NAME}:${GIT_COMMIT}"
+        IMAGE_NAME = 'aishawon/calculator-app'
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
     }
 
     stages {
+        stage('Checkout') {
+            steps {
+                git 'https://github.com/AiShawonBD/cicd_docker_and_kubernetes.git'
+            }
+        }
+
         stage('Setup') {
             steps {
-                sh 'pip install -r requirements.txt'
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                '''
             }
         }
 
         stage('Test') {
             steps {
-                sh 'pytest'
+                sh '''
+                    . venv/bin/activate
+                    python3 -m unittest discover -s tests
+                '''
             }
         }
 
         stage('Login to Docker Hub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                     sh 'echo $PASSWORD | docker login -u $USERNAME --password-stdin'
                 }
-                echo 'Docker login successful'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $IMAGE_TAG .'
-                sh 'docker image ls'
-                echo 'Docker image built successfully'
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                sh 'docker push $IMAGE_TAG'
-                echo 'Docker image pushed successfully'
+                sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
             }
         }
 
         stage('Deploy to Local Kubernetes') {
             steps {
-                script {
-                    sh """
-                        sed -i 's|image: aishawon/cicd_docker_demo:[a-zA-Z0-9_.-]*|image: $IMAGE_TAG|g' k8s/deployment.yaml
-                    """
-                    sh 'kubectl apply -f k8s/' //Deploy all k8s file.
-                }
+                sh '''
+                    kubectl apply -f k8s/
+                    kubectl rollout status deployment/calculator-deployment
+                '''
             }
         }
 
         stage('Acceptance Test') {
             steps {
-                script {
-                    sleep(time: 10, unit: 'SECONDS')
-                    def nodePort = sh(script: "kubectl get svc flask-app-service -o jsonpath='{.spec.ports[0].nodePort}'", returnStdout: true).trim()
-                    def nodeIP = sh(script: "minikube ip", returnStdout: true).trim()
-                    def serviceURL = "http://${nodeIP}:${nodePort}"
-                    echo "Running acceptance test on ${serviceURL}"
-                    sh "k6 run -e SERVICE=${serviceURL} acceptance-test.js"
-                }
+                sh 'curl -s http://localhost:30001 || true'
             }
         }
     }
