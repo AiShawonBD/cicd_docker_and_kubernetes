@@ -86,5 +86,11 @@ pipeline {
                 }
             }
         }
+        stage('Pipeline Success') {
+            steps {
+                echo '🎉 Pipeline has completed successfully! All stages passed. 🎉'
+            }
+        }
+
     }
 }
