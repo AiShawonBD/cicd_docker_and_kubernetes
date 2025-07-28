@@ -23,7 +23,7 @@ pipeline {
                 sh '''
                     . venv/bin/activate
                     pip install pytest  # Ensure pytest is installed
-                    pytest || true      # Avoid breaking pipeline if test fails
+                    pytest || true      # Avoid pipeline break if tests fail
                 '''
             }
         }
@@ -52,20 +52,26 @@ pipeline {
 
         stage('Deploy to Local K8s') {
             steps {
-                script {
-                    sh "sed -i 's|image: .*|image: ${IMAGE_TAG}|' k8s/deployment.yaml"
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    sh '''
+                        export KUBECONFIG=$KUBECONFIG_FILE
+                        sed -i 's|image: .*|image: '${IMAGE_TAG}'|' k8s/deployment.yaml
+                        kubectl apply -f k8s/
+                        kubectl get all
+                    '''
                 }
-                sh 'kubectl apply -f k8s/'
-                sh 'kubectl get all'
             }
         }
 
         stage('Run Acceptance Test') {
             steps {
-                script {
-                    sh "sleep 10"
-                    def podName = sh(script: "kubectl get pods -l app=flask-app -o jsonpath='{.items[0].metadata.name}'", returnStdout: true).trim()
-                    sh "kubectl logs ${podName}"
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
+                    sh '''
+                        export KUBECONFIG=$KUBECONFIG_FILE
+                        sleep 10
+                        POD_NAME=$(kubectl get pods -l app=flask-app -o jsonpath='{.items[0].metadata.name}')
+                        kubectl logs $POD_NAME
+                    '''
                 }
             }
         }
