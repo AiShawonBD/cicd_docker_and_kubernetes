@@ -68,8 +68,19 @@ pipeline {
                 withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG_FILE')]) {
                     sh '''
                         export KUBECONFIG=$KUBECONFIG_FILE
-                        sleep 10
+                        
+                        # Wait up to 120 seconds for pod to be running
+                        for i in $(seq 1 12); do
+                            POD_STATUS=$(kubectl get pods -l app=flask-app -o jsonpath='{.items[0].status.phase}')
+                            echo "Pod status: $POD_STATUS"
+                            if [ "$POD_STATUS" = "Running" ]; then
+                                break
+                            fi
+                            sleep 10
+                        done
+                        
                         POD_NAME=$(kubectl get pods -l app=flask-app -o jsonpath='{.items[0].metadata.name}')
+                        echo "Fetching logs from pod: $POD_NAME"
                         kubectl logs $POD_NAME
                     '''
                 }
